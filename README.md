@@ -10,19 +10,19 @@
 
 ## How it works
 
-```
-┌──────────┐  before_tool_call  ┌───────────────┐  "ask" verdicts   ┌────────────┐
-│  Agent    │ ─────────────────▶ │   ClawGuard   │ ────────────────▶ │  You, on    │
-│ (OpenClaw)│ ◀───────────────── │  (localhost)  │ ◀──────────────── │  WhatsApp   │
-└──────────┘   allow / block     └───────┬───────┘  APPROVE / DENY   └────────────┘
-                                         │
-                                  hash-chained
-                                  audit log
-```
+<p align="center">
+  <img src="docs/assets/architecture-flow.png" alt="Agent → ClawGuard policy gate → your machine" width="100%" />
+</p>
 
 1. A thin plugin inside the agent forwards every tool call to the ClawGuard daemon on `127.0.0.1`.
 2. The policy engine evaluates it: `hard_deny` → blocked instantly, `allow` → flows, everything else → **asks a human** on WhatsApp (or the console) and auto-denies on timeout.
 3. Every request and decision lands in an append-only, SHA-256 hash-chained audit log — edit one line and verification breaks.
+
+Every action gets exactly one of three verdicts:
+
+<p align="center">
+  <img src="docs/assets/three-verdicts.png" alt="Allow, ask-a-human, or deny" width="100%" />
+</p>
 
 ## Security model (the anti-OpenClaw)
 
@@ -56,5 +56,13 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 ## Status
 
 `v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + WhatsApp channels, OpenClaw plugin). Not yet independently audited; treat it as a second lock, not a vault. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the threat model and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, Windows Sandbox execution tier).
+
+## How attacks get stopped
+
+A prompt-injected email or a malicious skill tells your agent to grab your secrets and send them off. The agent obeys — but the action still has to pass the gate, and key material is hard-denied for every tool:
+
+<p align="center">
+  <img src="docs/assets/prompt-injection.png" alt="A malicious message whispers to the agent; ClawGuard blocks the exfiltration" width="70%" />
+</p>
 
 MIT licensed. Built in public — follow along.
