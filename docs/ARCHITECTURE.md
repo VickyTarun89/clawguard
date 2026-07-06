@@ -16,6 +16,7 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 | Console channel | `src/channels/console.ts` | Local stdin approvals for development |
 | WhatsApp channel | `src/channels/whatsapp.ts` | Meta Cloud API outbound; inbound replies via outbound-polling relay |
 | OpenClaw plugin | `integrations/openclaw/index.ts` | `before_tool_call` hook → `/v1/check`; blocks on anything but an explicit allow |
+| Hermes plugin | `integrations/hermes/plugin.py` | `pre_tool_call` gate + `post_tool_call` execution reports to `/v1/events` for bypass detection (upstream hook can silently not fire: hermes-agent#44582) |
 
 ## Key decisions
 

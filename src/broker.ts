@@ -27,6 +27,22 @@ export class Broker {
     return `${req.agent} wants ${req.tool} ${preview}`;
   }
 
+  /**
+   * Record a tool call the agent reports as already executed. Reconciling
+   * these against action.requested entries exposes any call that bypassed
+   * the pre-execution check (e.g. an agent whose hook silently didn't fire).
+   */
+  observe(input: CheckInput & { durationMs?: number }): void {
+    this.audit.append({
+      type: "action.observed",
+      agent: input.agent,
+      tool: input.tool,
+      params: input.params ?? {},
+      durationMs: input.durationMs,
+      observedAt: new Date().toISOString(),
+    });
+  }
+
   async check(input: CheckInput): Promise<Decision & { id: string }> {
     const req: ActionRequest = {
       id: randomUUID(),

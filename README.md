@@ -42,7 +42,13 @@ npm test
 npm start                              # daemon on 127.0.0.1:4747, console approvals on
 ```
 
-Wire up OpenClaw by installing the plugin in `integrations/openclaw/` and setting `CLAWGUARD_TOKEN`. For WhatsApp approvals set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), and optionally `WA_RELAY_URL`.
+Then connect your agent — both plugins talk to the same daemon, and one policy governs them all:
+
+- **OpenClaw:** install the `before_tool_call` plugin in [`integrations/openclaw/`](integrations/openclaw/) and set `CLAWGUARD_TOKEN`.
+- **Hermes Agent:** copy [`integrations/hermes/`](integrations/hermes/) to `~/.hermes/plugins/clawguard/` — it hooks `pre_tool_call` to gate execution *and* reports executed calls back, so the audit log exposes any tool call that bypassed the check (**bypass detection**). See its [README](integrations/hermes/README.md).
+- **Anything else:** the daemon is agent-agnostic — `POST /v1/check {agent, tool, params}`, act only on `"allow"`. An adapter is ~50 lines.
+
+For WhatsApp approvals set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), and optionally `WA_RELAY_URL`.
 
 Try it without an agent:
 

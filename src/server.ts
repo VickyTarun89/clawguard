@@ -53,6 +53,20 @@ export function startServer(broker: Broker, opts: { port: number; token: string 
         return send(200, decision);
       }
 
+      if (req.method === "POST" && url.pathname === "/v1/events") {
+        const body = await readJson(req);
+        if (typeof body.agent !== "string" || typeof body.tool !== "string") {
+          return send(400, { error: "agent and tool are required strings" });
+        }
+        broker.observe({
+          agent: body.agent,
+          tool: body.tool,
+          params: (body.params ?? {}) as Record<string, unknown>,
+          durationMs: typeof body.duration_ms === "number" ? body.duration_ms : undefined,
+        });
+        return send(200, { ok: true });
+      }
+
       if (req.method === "POST" && url.pathname === "/v1/decisions") {
         const body = await readJson(req);
         const valid =
