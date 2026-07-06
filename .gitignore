@@ -3,3 +3,4 @@ data/
 policy.yaml
 .env
 *.log
+__pycache__/
