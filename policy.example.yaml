@@ -1,0 +1,38 @@
+# ClawGuard policy — default-deny firewall rules for agent tool calls.
+# Precedence: hard_deny > allow > ask > defaults.unmatched.
+# Copy to policy.yaml and adjust the paths/commands to your machine.
+
+version: 1
+
+defaults:
+  unmatched: ask            # anything not matched below needs a human ("ask" or "deny" — never "allow")
+  ask_timeout_seconds: 120
+  on_timeout: deny          # unattended machines never self-approve
+
+hard_deny:                  # blocked instantly, no human can approve these
+  - note: destructive filesystem commands
+    tool: "*"
+    command: ["*rm -rf*", "*format *", "*mkfs*", "*del /f*", "*rmdir /s*"]
+  - note: secrets exfiltration — no tool may touch key material
+    tool: "*"
+    params_contain: [".env", "id_rsa", "id_ed25519", "credentials.json", ".aws/credentials"]
+  - note: agent self-modification of its own guardrails
+    tool: "*"
+    params_contain: ["policy.yaml", "clawguard"]
+
+allow:                      # low-risk, read-mostly actions flow without friction
+  - note: read project files
+    tool: read*
+    path: ["D:/projects/**", "D:/playground/**"]
+  - note: safe git and package commands
+    tool: exec*
+    command: ["git status", "git diff*", "git log*", "npm test*", "npm run build*"]
+
+ask:                        # everything here pings you on WhatsApp/console first
+  - note: any shell execution not explicitly allowed
+    tool: exec*
+  - note: any file write
+    tool: write*
+  - note: outbound messages (mail, chat) drafted by the agent
+    tool: "*"
+    params_contain: ["send_message", "sendmail"]

@@ -1,0 +1,22 @@
+{
+  "name": "clawguard",
+  "version": "0.1.0",
+  "description": "Default-deny firewall and human-approval gateway for personal AI agents (OpenClaw, Hermes, and friends).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/**/*.test.ts\""
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
