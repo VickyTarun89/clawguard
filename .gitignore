@@ -4,3 +4,5 @@ policy.yaml
 .env
 *.log
 __pycache__/
+*.mp4
+*.mov
