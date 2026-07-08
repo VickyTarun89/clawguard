@@ -9,11 +9,13 @@ export interface WhatsAppConfig {
   /** E.164 numbers allowed to approve/deny. Anyone else is ignored. */
   approvers: string[];
   /**
-   * Outbound-poll relay for inbound replies (e.g. a Cloudflare Worker that
-   * receives the Cloud API webhook and queues messages). Keeps the local
+   * Outbound-poll relay for inbound replies (the Cloudflare Worker in relay/
+   * that receives the Cloud API webhook and queues messages). Keeps the local
    * machine free of open inbound ports. Omit to run send-only.
    */
   relayUrl?: string;
+  /** Bearer token the relay's /messages endpoint requires. */
+  relayToken?: string;
   pollIntervalMs?: number;
 }
 
@@ -80,7 +82,9 @@ export class WhatsAppChannel {
 
   async #poll(): Promise<void> {
     try {
-      const res = await fetch(`${this.#cfg.relayUrl}/messages?since=${this.#cursor}`);
+      const res = await fetch(`${this.#cfg.relayUrl}/messages?since=${this.#cursor}`, {
+        headers: this.#cfg.relayToken ? { authorization: `Bearer ${this.#cfg.relayToken}` } : {},
+      });
       if (!res.ok) return;
       const messages = (await res.json()) as RelayMessage[];
       for (const msg of messages) {

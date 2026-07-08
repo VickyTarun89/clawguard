@@ -1,0 +1,9 @@
+name = "clawguard-relay"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+# Create with:  npx wrangler kv namespace create MESSAGES
+# then paste the generated id below.
+[[kv_namespaces]]
+binding = "MESSAGES"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

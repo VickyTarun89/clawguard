@@ -35,6 +35,7 @@ if (waToken && waPhoneId && waApprovers.length > 0) {
       phoneNumberId: waPhoneId,
       approvers: waApprovers,
       relayUrl: process.env.WA_RELAY_URL,
+      relayToken: process.env.WA_RELAY_TOKEN,
     },
     queue,
   ).start();
