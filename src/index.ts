@@ -7,6 +7,7 @@ import { Broker } from "./broker.ts";
 import { startServer } from "./server.ts";
 import { startConsoleChannel } from "./channels/console.ts";
 import { WhatsAppChannel } from "./channels/whatsapp.ts";
+import { TelegramChannel } from "./channels/telegram.ts";
 
 const policyPath = process.argv[2] ?? "policy.yaml";
 if (!existsSync(policyPath)) {
@@ -24,6 +25,16 @@ const port = Number(process.env.CLAWGUARD_PORT ?? 4747);
 startServer(broker, { port, token });
 
 startConsoleChannel(queue);
+
+const tgToken = process.env.TG_BOT_TOKEN;
+const tgApprovers = (process.env.TG_APPROVERS ?? "")
+  .split(",")
+  .map((s) => Number(s.trim()))
+  .filter((n) => Number.isInteger(n) && n > 0);
+if (tgToken && tgApprovers.length > 0) {
+  new TelegramChannel({ botToken: tgToken, approvers: tgApprovers }, queue).start();
+  console.log(`[ClawGuard] Telegram channel on (${tgApprovers.length} approver(s), long-polling)`);
+}
 
 const waToken = process.env.WA_ACCESS_TOKEN;
 const waPhoneId = process.env.WA_PHONE_NUMBER_ID;

@@ -48,7 +48,19 @@ Then connect your agent — both plugins talk to the same daemon, and one policy
 - **Hermes Agent:** copy [`integrations/hermes/`](integrations/hermes/) to `~/.hermes/plugins/clawguard/` — it hooks `pre_tool_call` to gate execution *and* reports executed calls back, so the audit log exposes any tool call that bypassed the check (**bypass detection**). See its [README](integrations/hermes/README.md).
 - **Anything else:** the daemon is agent-agnostic — `POST /v1/check {agent, tool, params}`, act only on `"allow"`. An adapter is ~50 lines.
 
-For WhatsApp approvals, deploy the free relay Worker in [`relay/`](relay/) (full walkthrough in its [README](relay/README.md)), then set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), `WA_RELAY_URL`, and `WA_RELAY_TOKEN`.
+### Phone approvals — pick your channel
+
+**Telegram (recommended — ~3 minutes, zero infrastructure):**
+
+1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
+2. Get your numeric user id (message [@userinfobot](https://t.me/userinfobot)).
+3. `set TG_BOT_TOKEN=<token>` and `set TG_APPROVERS=<your id>`, restart, then open your bot and send `/start` once.
+
+Approvals arrive with inline **✅ Approve / ⛔ Deny buttons** — tap to decide. The daemon long-polls Telegram outbound-only: no webhook, no relay, no extra accounts.
+
+**WhatsApp (the flagship — ~25 minutes, self-hosted):** deploy the free relay Worker in [`relay/`](relay/) (full walkthrough in its [README](relay/README.md)), then set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), `WA_RELAY_URL`, and `WA_RELAY_TOKEN`.
+
+**Console (zero setup):** on by default — approve with `a <id>` / `d <id>` in the terminal.
 
 Try it without an agent:
 

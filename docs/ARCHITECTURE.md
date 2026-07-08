@@ -14,7 +14,8 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 | Audit log | `src/audit/log.ts` | Append-only JSONL, each entry SHA-256-commits to the previous (tamper-evident) |
 | HTTP API | `src/server.ts` | Loopback-only, bearer-token-only: `/v1/check`, `/v1/decisions`, `/v1/pending`, `/v1/health` |
 | Console channel | `src/channels/console.ts` | Local stdin approvals for development |
-| WhatsApp channel | `src/channels/whatsapp.ts` | Meta Cloud API outbound; inbound replies via outbound-polling relay |
+| WhatsApp channel | `src/channels/whatsapp.ts` | Meta Cloud API outbound; inbound replies via outbound-polling relay (`relay/` Worker) |
+| Telegram channel | `src/channels/telegram.ts` | Zero-infra path: outbound long-polling, inline Approve/Deny buttons, unforgeable numeric approver ids |
 | OpenClaw plugin | `integrations/openclaw/index.ts` | `before_tool_call` hook → `/v1/check`; blocks on anything but an explicit allow |
 | Hermes plugin | `integrations/hermes/plugin.py` | `pre_tool_call` gate + `post_tool_call` execution reports to `/v1/events` for bypass detection (upstream hook can silently not fire: hermes-agent#44582) |
 
