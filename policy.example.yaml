@@ -19,6 +19,12 @@ hard_deny:                  # blocked instantly, no human can approve these
   - note: agent self-modification of its own guardrails
     tool: "*"
     params_contain: ["policy.yaml", "clawguard"]
+  # Personal untouchables — point these at YOUR folders and uncomment.
+  # Anything not matched by an allow rule already asks a human by default;
+  # hard_deny is for what should never even be askable:
+  # - note: financial and identity documents
+  #   tool: "*"
+  #   path: ["C:/Users/you/Documents/Banking/**", "**/tax*/**", "**/passwords*/**"]
 
 allow:                      # low-risk, read-mostly actions flow without friction
   - note: read project files

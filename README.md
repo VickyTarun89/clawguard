@@ -42,9 +42,11 @@ npm test
 npm start                              # daemon on 127.0.0.1:4747, console approvals on
 ```
 
+> **Start order matters:** start the ClawGuard daemon **before** your agent. The plugins fail closed — if the daemon isn't running, **every tool call is blocked** ("ClawGuard unreachable — failing closed"). That's the firewall doing its job, but if you didn't know, it looks like your agent broke. Daemon first, agent second. No token plumbing needed: the daemon publishes its token to `~/.clawguard/token` and the plugins pick it up automatically.
+
 Then connect your agent — both plugins talk to the same daemon, and one policy governs them all:
 
-- **OpenClaw:** install the `before_tool_call` plugin in [`integrations/openclaw/`](integrations/openclaw/) and set `CLAWGUARD_TOKEN`.
+- **OpenClaw:** `openclaw plugins install ./integrations/openclaw`, then restart the gateway. See [its README](integrations/openclaw/README.md) for verification steps and gotchas.
 - **Hermes Agent:** copy [`integrations/hermes/`](integrations/hermes/) to `~/.hermes/plugins/clawguard/` — it hooks `pre_tool_call` to gate execution *and* reports executed calls back, so the audit log exposes any tool call that bypassed the check (**bypass detection**). See its [README](integrations/hermes/README.md).
 - **Anything else:** the daemon is agent-agnostic — `POST /v1/check {agent, tool, params}`, act only on `"allow"`. An adapter is ~50 lines.
 
@@ -74,6 +76,24 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 ## Status
 
 `v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + WhatsApp channels, OpenClaw plugin). Not yet independently audited; treat it as a second lock, not a vault. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the threat model and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, Windows Sandbox execution tier).
+
+## What gets protected (not just `.env` files)
+
+ClawGuard protects **whatever your policy says** — secrets are just the loudest example. The mental model is three zones:
+
+1. **`hard_deny` — never, no matter who asks.** The example policy ships with key material (`.env`, SSH keys, cloud credentials) and destructive commands here. Add your own untouchables — financial documents, tax folders, password-manager vaults:
+
+   ```yaml
+   - note: financial and identity documents — no agent, ever
+     tool: "*"
+     path: ["C:/Users/you/Documents/Banking/**", "**/tax-returns/**"]
+   ```
+
+2. **`allow` — your explicitly safe zones.** Project folders, safe read-only commands. **Keep these globs narrow** — every path you allow is a path the agent can touch without asking. Don't allow `C:/Users/you/**`; allow `D:/projects/**`.
+
+3. **Everything else — asks a human.** This is the part people miss: your bank statements, hidden files, photos, and random personal folders are protected **by default**, because any action that matches no rule goes to `ask` (or `deny`, if you set it stricter). The agent can't open `Documents\loan-statement.pdf` without your phone buzzing first — not because you wrote a rule for it, but because you *didn't* write one allowing it.
+
+Two honest limits: ClawGuard matches on the **tool call's parameters** (paths, commands, strings) — it doesn't read file contents, so a sensitive file sitting *inside* a folder you allowed will pass that allow rule. And it gates actions routed through the agent's tool layer — the OS-level sandbox tier (roadmap v0.4) is what will enforce boundaries even on a fully compromised agent.
 
 ## How attacks get stopped
 
