@@ -1,0 +1,11 @@
+{
+  "id": "clawguard",
+  "name": "ClawGuard",
+  "description": "Firewall for agent tool calls: default-deny policy, human approval, tamper-evident audit.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
