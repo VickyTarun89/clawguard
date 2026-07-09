@@ -12,9 +12,25 @@
  * (bypass detection).
  */
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const GUARD_URL = process.env.CLAWGUARD_URL ?? "http://127.0.0.1:4747";
-const GUARD_TOKEN = process.env.CLAWGUARD_TOKEN ?? "";
+
+// Prefer an explicit env token; otherwise read the file the daemon publishes,
+// so the plugin authenticates even when the gateway runs as a background
+// service with no CLAWGUARD_TOKEN in its environment.
+function resolveToken() {
+  if (process.env.CLAWGUARD_TOKEN) return process.env.CLAWGUARD_TOKEN;
+  const path = process.env.CLAWGUARD_TOKEN_FILE ?? join(homedir(), ".clawguard", "token");
+  try {
+    return readFileSync(path, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+const GUARD_TOKEN = resolveToken();
 // A check may legitimately take as long as the human-approval window
 // (daemon default ask_timeout is 120s), so leave headroom past that.
 const CHECK_TIMEOUT_MS = Number(process.env.CLAWGUARD_CHECK_TIMEOUT_MS ?? 150000);

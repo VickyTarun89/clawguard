@@ -10,16 +10,24 @@ tool call behind the ClawGuard firewall.
 openclaw plugins install ./integrations/openclaw
 ```
 
-Then make sure the OpenClaw gateway process has the same token as the daemon:
+**Token:** you do **not** need to set `CLAWGUARD_TOKEN` in the gateway's
+environment. On startup the daemon publishes its token to `~/.clawguard/token`
+(user-readable only), and the plugin reads it automatically. This matters
+because OpenClaw's gateway often runs as a background service where injecting an
+env var is awkward. Set `CLAWGUARD_TOKEN` explicitly only if you want to pin a
+specific token; otherwise auto-discovery just works.
 
-```bash
-set CLAWGUARD_TOKEN=<your token>
-# optional: CLAWGUARD_URL (default http://127.0.0.1:4747),
-#           CLAWGUARD_CHECK_TIMEOUT_MS (default 150000 — keep it above the
-#           daemon's ask_timeout so human approvals have time to arrive)
-```
+Optional overrides: `CLAWGUARD_URL` (default `http://127.0.0.1:4747`),
+`CLAWGUARD_CHECK_TIMEOUT_MS` (default 150000 — keep it above the daemon's
+`ask_timeout` so human approvals have time to arrive).
 
-Start the ClawGuard daemon first, then restart the gateway to load the plugin.
+Start the ClawGuard daemon first, then (re)start the gateway to load the plugin.
+OpenClaw treats external plugins as untrusted until allowlisted; if you see a
+"plugins.allow is empty" warning, it is only a warning — the plugin still loads.
+To silence it, add just this plugin without disabling bundled ones:
+`openclaw config set plugins.allow '[\"clawguard\"]'` **only if** you also keep
+the bundled provider plugins working (an empty-except-clawguard allowlist will
+disable the model provider — prefer leaving `plugins.allow` unset).
 
 ## What it registers
 

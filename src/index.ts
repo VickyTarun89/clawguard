@@ -8,6 +8,7 @@ import { startServer } from "./server.ts";
 import { startConsoleChannel } from "./channels/console.ts";
 import { WhatsAppChannel } from "./channels/whatsapp.ts";
 import { TelegramChannel } from "./channels/telegram.ts";
+import { publishToken } from "./tokenfile.ts";
 
 const policyPath = process.argv[2] ?? "policy.yaml";
 if (!existsSync(policyPath)) {
@@ -23,6 +24,9 @@ const broker = new Broker(policy, queue, audit);
 const token = process.env.CLAWGUARD_TOKEN ?? randomBytes(24).toString("hex");
 const port = Number(process.env.CLAWGUARD_PORT ?? 4747);
 startServer(broker, { port, token });
+
+// Publish the token so local agent plugins can authenticate without env plumbing.
+const tokenFile = publishToken(token);
 
 startConsoleChannel(queue);
 
@@ -57,5 +61,6 @@ audit.append({ type: "gateway.started", policyPath, port });
 console.log(
   `[ClawGuard] listening on 127.0.0.1:${port}\n` +
     `[ClawGuard] policy: ${policy.hard_deny.length} hard_deny / ${policy.allow.length} allow / ${policy.ask.length} ask, unmatched → ${policy.defaults.unmatched}\n` +
-    `[ClawGuard] API token${process.env.CLAWGUARD_TOKEN ? " from CLAWGUARD_TOKEN" : " (generated — set CLAWGUARD_TOKEN to pin)"}: ${token}`,
+    `[ClawGuard] API token${process.env.CLAWGUARD_TOKEN ? " from CLAWGUARD_TOKEN" : " (generated — set CLAWGUARD_TOKEN to pin)"}: ${token}\n` +
+    `[ClawGuard] token published for local plugins at: ${tokenFile}`,
 );

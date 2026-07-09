@@ -20,8 +20,25 @@ import json
 import os
 import urllib.request
 
+
+def _resolve_token():
+    """Prefer CLAWGUARD_TOKEN; else read the file the daemon publishes, so the
+    plugin authenticates even when Hermes runs with no token in its env."""
+    env = os.environ.get("CLAWGUARD_TOKEN")
+    if env:
+        return env
+    path = os.environ.get("CLAWGUARD_TOKEN_FILE") or os.path.join(
+        os.path.expanduser("~"), ".clawguard", "token"
+    )
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
 GUARD_URL = os.environ.get("CLAWGUARD_URL", "http://127.0.0.1:4747")
-GUARD_TOKEN = os.environ.get("CLAWGUARD_TOKEN", "")
+GUARD_TOKEN = _resolve_token()
 # A check may legitimately take as long as the human-approval window
 # (daemon default ask_timeout is 120s), so leave headroom past that.
 CHECK_TIMEOUT_S = float(os.environ.get("CLAWGUARD_CHECK_TIMEOUT", "150"))
