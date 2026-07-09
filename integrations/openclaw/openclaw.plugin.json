@@ -3,6 +3,9 @@
   "name": "ClawGuard",
   "description": "Firewall for agent tool calls: default-deny policy, human approval, tamper-evident audit.",
   "version": "0.1.0",
+  "activation": {
+    "onStartup": true
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

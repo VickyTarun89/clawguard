@@ -75,7 +75,11 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 ## Status
 
-`v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + WhatsApp channels, OpenClaw plugin). Not yet independently audited; treat it as a second lock, not a vault. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the threat model and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, Windows Sandbox execution tier).
+`v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins).
+
+**Verified end-to-end against OpenClaw 2026.6.11 on native Windows:** an agent asked to read a `.env` file has the read intercepted by the `before_tool_call` hook and hard-denied — the agent reports back *"access to this file has been denied by ClawGuard,"* and the block is recorded in the tamper-evident log (`action.requested` → `action.decided: deny`).
+
+Not yet independently audited; treat it as a second lock, not a vault. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the threat model and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, Windows Sandbox execution tier).
 
 ## What gets protected (not just `.env` files)
 

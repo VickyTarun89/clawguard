@@ -42,9 +42,26 @@ disable the model provider — prefer leaving `plugins.allow` unset).
 
 ```bash
 openclaw plugins list      # ClawGuard: enabled
-openclaw plugins doctor    # no errors expected
+openclaw gateway restart   # then check the startup log lists clawguard among loaded plugins
 ```
 
-Then ask the agent to do something your policy hard-denies (e.g. read a `.env`)
-— the tool call should come back blocked with a `ClawGuard: matched hard_deny
-rule` reason, and both events should appear in `data/audit.jsonl`.
+The plugin's manifest sets `activation.onStartup: true` — **this is required.**
+Without it, OpenClaw *discovers* the plugin ("Status: loaded") but never runs
+its code, so the `before_tool_call` hook never registers and nothing is gated.
+Confirm the gateway startup log's `http server listening (N plugins: …)` line
+includes `clawguard`. If you edit and reinstall, use
+`openclaw plugins install ./integrations/openclaw --force`.
+
+Then ask the agent to read a `.env` file. Expected (verified on OpenClaw
+2026.6.11): the agent replies that access was **denied by ClawGuard**, and
+`data/audit.jsonl` shows `action.requested` → `action.decided: deny`.
+
+### Gotchas
+
+- **Leave `plugins.allow` unset.** It's a strict allowlist over *all* plugins —
+  setting it to only `["clawguard"]` disables the bundled model-provider
+  plugins and breaks the agent. The "plugins.allow is empty" line is just a
+  warning; ignore it.
+- **Approval (`ask`) actions** hold the tool call open until you decide. Keep
+  the agent's turn timeout (`agents.defaults.timeoutSeconds`) comfortably above
+  how long you'll take to approve on your phone.
