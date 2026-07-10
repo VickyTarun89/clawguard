@@ -1,0 +1,29 @@
+# Demo policy — tuned to show all three verdicts clearly on camera.
+# Precedence: hard_deny > allow > ask > defaults.unmatched.
+version: 1
+
+defaults:
+  unmatched: ask
+  ask_timeout_seconds: 120
+  on_timeout: deny
+
+hard_deny:                  # blocked instantly — no human can approve
+  - note: secrets exfiltration — no agent may touch key material
+    tool: "*"
+    params_contain: [".env", "id_rsa", "id_ed25519", "credentials.json", ".aws/credentials"]
+  - note: destructive filesystem commands
+    tool: "*"
+    command: ["*rm -rf*", "*format *", "*mkfs*", "*del /f*", "*rmdir /s*"]
+
+allow:                      # low-risk, flows without friction
+  - note: reading ordinary files is fine
+    tool: read*
+  - note: safe read-only git
+    tool: exec*
+    command: ["git status", "git diff*", "git log*"]
+
+ask:                        # pings your phone first
+  - note: writing files needs your approval
+    tool: write*
+  - note: any other shell command needs your approval
+    tool: exec*
