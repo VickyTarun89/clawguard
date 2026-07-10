@@ -58,9 +58,18 @@ if (waToken && waPhoneId && waApprovers.length > 0) {
 }
 
 audit.append({ type: "gateway.started", policyPath, port });
+
+// Never print the token by default: startup output is routinely shared in
+// screenshots, screen recordings, and pasted logs. Plugins read it from the
+// token file, so nothing needs it on screen. Opt in with CLAWGUARD_PRINT_TOKEN=1.
+const tokenLine =
+  process.env.CLAWGUARD_PRINT_TOKEN === "1"
+    ? token
+    : `${token.slice(0, 6)}… (hidden — set CLAWGUARD_PRINT_TOKEN=1 to reveal)`;
+
 console.log(
   `[ClawGuard] listening on 127.0.0.1:${port}\n` +
     `[ClawGuard] policy: ${policy.hard_deny.length} hard_deny / ${policy.allow.length} allow / ${policy.ask.length} ask, unmatched → ${policy.defaults.unmatched}\n` +
-    `[ClawGuard] API token${process.env.CLAWGUARD_TOKEN ? " from CLAWGUARD_TOKEN" : " (generated — set CLAWGUARD_TOKEN to pin)"}: ${token}\n` +
+    `[ClawGuard] API token${process.env.CLAWGUARD_TOKEN ? " from CLAWGUARD_TOKEN" : " (generated)"}: ${tokenLine}\n` +
     `[ClawGuard] token published for local plugins at: ${tokenFile}`,
 );

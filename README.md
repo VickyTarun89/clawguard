@@ -38,9 +38,14 @@ Every action gets exactly one of three verdicts:
 ```bash
 npm install
 copy policy.example.yaml policy.yaml   # then edit paths/commands for your machine
+copy .env.example .env                 # then put your secrets in .env (gitignored)
 npm test
 npm start                              # daemon on 127.0.0.1:4747, console approvals on
 ```
+
+Secrets live in `.env` (read natively by Node, never committed) so you never type
+a token into a terminal you might be screen-recording. The daemon also masks its
+API token in startup output by default.
 
 > **Start order matters:** start the ClawGuard daemon **before** your agent. The plugins fail closed — if the daemon isn't running, **every tool call is blocked** ("ClawGuard unreachable — failing closed"). That's the firewall doing its job, but if you didn't know, it looks like your agent broke. Daemon first, agent second. No token plumbing needed: the daemon publishes its token to `~/.clawguard/token` and the plugins pick it up automatically.
 

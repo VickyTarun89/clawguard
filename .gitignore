@@ -6,3 +6,4 @@ policy.yaml
 __pycache__/
 *.mp4
 *.mov
+docs/PRO-PLAN.md
