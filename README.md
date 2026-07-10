@@ -4,7 +4,7 @@
 
 # 🛡️ ClawGuard
 
-**The firewall for personal AI agents.** A default-deny action broker that sits between your agent (OpenClaw, Hermes, …) and your machine — with human approval over WhatsApp for anything risky, and a tamper-evident audit log of everything the agent did.
+**The firewall for personal AI agents.** A default-deny action broker that sits between your agent (OpenClaw, Hermes, …) and your machine — tap-to-approve anything risky from your phone via Telegram or WhatsApp, and keep a tamper-evident audit log of everything the agent did.
 
 > OpenClaw shipped 138+ CVEs in its first months and its skill registry hosted 1,400+ confirmed malicious skills. Microsoft's guidance is to not run it on a personal machine at all. The agents aren't going away — the missing piece is the control layer. That's ClawGuard.
 
@@ -15,7 +15,7 @@
 </p>
 
 1. A thin plugin inside the agent forwards every tool call to the ClawGuard daemon on `127.0.0.1`.
-2. The policy engine evaluates it: `hard_deny` → blocked instantly, `allow` → flows, everything else → **asks a human** on WhatsApp (or the console) and auto-denies on timeout.
+2. The policy engine evaluates it: `hard_deny` → blocked instantly, `allow` → flows, everything else → **asks a human** on Telegram, WhatsApp, or the console, and auto-denies on timeout.
 3. Every request and decision lands in an append-only, SHA-256 hash-chained audit log — edit one line and verification breaks.
 
 Every action gets exactly one of three verdicts:
@@ -28,10 +28,13 @@ Every action gets exactly one of three verdicts:
 
 - **Default-deny.** Unmatched actions can only `ask` or `deny` — the config format cannot express "allow by default".
 - **Fail-closed.** Daemon unreachable? Tool call blocked. Timeout? Denied. No decision path ever ends in silent approval.
-- **No inbound exposure.** The daemon binds loopback only; WhatsApp replies arrive via an outbound-polling relay, so your machine opens zero public ports.
+- **No inbound exposure.** The daemon binds loopback only. Telegram is long-polled outbound; WhatsApp replies arrive via an outbound-polling relay. Your machine opens zero public ports.
 - **Auth mandatory.** Every API call needs a bearer token; there is no "disable auth" flag.
-- **Approver allowlist.** Only configured phone numbers can decide, and `hard_deny` actions can't be approved by anyone — including you at 2am.
+- **Approver allowlist.** Only configured Telegram user ids / phone numbers can decide, and `hard_deny` actions can't be approved by anyone — including you at 2am.
 - **Self-protection.** The example policy hard-denies the agent touching `policy.yaml` or ClawGuard itself.
+- **Secrets stay off-screen.** Config lives in a gitignored `.env`, and the daemon masks its API token in startup output — logs and screen recordings stay safe to share.
+
+See [SECURITY.md](SECURITY.md) for the full threat model, including an explicit list of what ClawGuard does **not** protect against.
 
 ## Quick start
 
@@ -61,7 +64,7 @@ Then connect your agent — both plugins talk to the same daemon, and one policy
 
 1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
 2. Get your numeric user id (message [@userinfobot](https://t.me/userinfobot)).
-3. `set TG_BOT_TOKEN=<token>` and `set TG_APPROVERS=<your id>`, restart, then open your bot and send `/start` once.
+3. Put both in your `.env` as `TG_BOT_TOKEN` and `TG_APPROVERS`, restart the daemon, then open your bot and send `/start` once (Telegram bots cannot message you first).
 
 Approvals arrive with inline **✅ Approve / ⛔ Deny buttons** — tap to decide. The daemon long-polls Telegram outbound-only: no webhook, no relay, no extra accounts.
 
@@ -82,9 +85,17 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 `v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins).
 
-**Verified end-to-end against OpenClaw 2026.6.11 on native Windows:** an agent asked to read a `.env` file has the read intercepted by the `before_tool_call` hook and hard-denied — the agent reports back *"access to this file has been denied by ClawGuard,"* and the block is recorded in the tamper-evident log (`action.requested` → `action.decided: deny`).
+**Verified end-to-end against OpenClaw 2026.6.11 on native Windows.** All three verdict paths were exercised against a live agent:
 
-Not yet independently audited; treat it as a second lock, not a vault. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the threat model and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, Windows Sandbox execution tier).
+| Agent action | ClawGuard | Result |
+|---|---|---|
+| read `secrets.env` | `hard_deny`, instantly | agent replies *"access to this file has been denied by ClawGuard"* — no approval offered to anyone |
+| write `test.txt` | `ask` → Telegram | phone shows *"openclaw wants write …"*; tapping ⛔ records `decidedBy=human`, the file is never created |
+| write `test.txt`, ignored | `ask` → timeout | auto-denied after 120s — agent reports *"timed out waiting for human approval"* |
+
+Every request and decision landed in the hash-chained log, which still verifies.
+
+Not yet independently audited; treat it as a second lock, not a vault. See [SECURITY.md](SECURITY.md) for the threat model and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, OS sandbox execution tier).
 
 ## What gets protected (not just `.env` files)
 
@@ -112,4 +123,12 @@ A prompt-injected email or a malicious skill tells your agent to grab your secre
   <img src="docs/assets/prompt-injection.png" alt="A malicious message whispers to the agent; ClawGuard blocks the exfiltration" width="70%" />
 </p>
 
-MIT licensed. Built in public — follow along.
+## Contributing
+
+Issues and PRs welcome — especially adapters for other agents, and policy rules
+worth shipping in the example. For security bugs, do **not** open an issue; see
+[SECURITY.md](SECURITY.md).
+
+---
+
+[MIT licensed](LICENSE). Built in public — follow along.
