@@ -51,6 +51,7 @@ export class TelegramChannel {
   #queue: ApprovalQueue;
   #offset = 0;
   #running = false;
+  #pollFailures = 0;
 
   constructor(cfg: TelegramConfig, queue: ApprovalQueue) {
     this.#cfg = cfg;
@@ -152,8 +153,17 @@ export class TelegramChannel {
           if (update.callback_query) await this.#handleCallback(update.callback_query);
           else if (update.message) this.#handleMessage(update.message);
         }
+        this.#pollFailures = 0;
       } catch (err) {
-        console.error(`[ClawGuard] Telegram poll failed: ${(err as Error).message}`);
+        // A long-poll that stalls on a network blip aborts on our timeout —
+        // that's expected. Only surface it if it keeps happening, so a single
+        // transient hiccup doesn't look like a failure.
+        this.#pollFailures++;
+        if (this.#pollFailures >= 3) {
+          console.error(
+            `[ClawGuard] Telegram polling has failed ${this.#pollFailures}× — check the bot token / network. (${(err as Error).message})`,
+          );
+        }
         await new Promise((r) => setTimeout(r, 5000)); // back off, then resume
       }
     }
