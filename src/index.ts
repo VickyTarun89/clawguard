@@ -10,6 +10,7 @@ import { WhatsAppChannel } from "./channels/whatsapp.ts";
 import { TelegramChannel } from "./channels/telegram.ts";
 import { publishToken } from "./tokenfile.ts";
 import { RememberedStore } from "./remember.ts";
+import { startProxy } from "./proxy/server.ts";
 
 const policyPath = process.argv[2] ?? "policy.yaml";
 if (!existsSync(policyPath)) {
@@ -68,6 +69,15 @@ if (waToken && waPhoneId && waApprovers.length > 0) {
     queue,
   ).start();
   console.log(`[ClawGuard] WhatsApp channel on (${waApprovers.length} approver(s)${process.env.WA_RELAY_URL ? ", relay polling" : ", send-only"})`);
+}
+
+// Experimental (v0.3): OpenAI-compatible LLM proxy — gates tool calls for any
+// agent with no plugin. Enabled only when an upstream is configured.
+const proxyUpstream = process.env.CLAWGUARD_PROXY_UPSTREAM;
+if (proxyUpstream) {
+  const proxyPort = Number(process.env.CLAWGUARD_PROXY_PORT ?? 4750);
+  startProxy(broker, { port: proxyPort, upstream: proxyUpstream });
+  console.log(`[ClawGuard] LLM proxy (experimental) on 127.0.0.1:${proxyPort} → ${proxyUpstream}`);
 }
 
 audit.append({ type: "gateway.started", policyPath, port });

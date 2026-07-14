@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (v0.3-dev)
+
+- **LLM proxy mode (experimental).** Set `CLAWGUARD_PROXY_UPSTREAM` and point
+  any OpenAI-compatible agent's base URL at `127.0.0.1:4750`: the proxy gates
+  the `tool_calls` in every model response through the same policy engine —
+  no plugin required. One denied call blocks the whole response (fail
+  closed); streamed requests are served as a buffered replay; the agent's own
+  API key passes through and is never stored. Unit-tested; not yet verified
+  against a live agent.
+
 ## v0.2.0 — 2026-07-12
 
 Approver authentication + approval fatigue relief. The theme: make the human
