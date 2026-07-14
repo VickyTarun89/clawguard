@@ -121,6 +121,91 @@ export async function gateCompletion(broker: Broker, agent: string, completion: 
   };
 }
 
+// --- Anthropic Messages API (POST /v1/messages) ---
+
+interface AnthropicContentBlock {
+  type?: string;
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  text?: string;
+}
+
+interface AnthropicMessage {
+  id?: string;
+  type?: string;
+  role?: string;
+  model?: string;
+  content?: AnthropicContentBlock[];
+  stop_reason?: string | null;
+  stop_sequence?: string | null;
+  usage?: unknown;
+}
+
+/** Same gate, Anthropic shape: tool_use content blocks instead of tool_calls. */
+export async function gateAnthropicMessage(
+  broker: Broker,
+  agent: string,
+  message: AnthropicMessage,
+): Promise<AnthropicMessage> {
+  const denials: string[] = [];
+  for (const block of message.content ?? []) {
+    if (block.type !== "tool_use") continue;
+    const tool = block.name ?? "unknown";
+    const decision = await broker.check({ agent, tool, params: block.input ?? {} });
+    if (decision.verdict !== "allow") denials.push(`${tool}: ${decision.reason}`);
+  }
+  if (denials.length === 0) return message;
+
+  const notice =
+    `ClawGuard blocked ${denials.length} tool call(s):\n` +
+    denials.map((d) => `- ${d}`).join("\n") +
+    `\nDo not retry the blocked action.`;
+  return { ...message, content: [{ type: "text", text: notice }], stop_reason: "end_turn" };
+}
+
+/** Replay a gated Anthropic message as the SSE event sequence SDKs expect. */
+function writeAsAnthropicSse(res: ServerResponse, message: AnthropicMessage): void {
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  const emit = (event: string, data: unknown): void => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  emit("message_start", { type: "message_start", message: { ...message, content: [], stop_reason: null } });
+  (message.content ?? []).forEach((block, index) => {
+    if (block.type === "tool_use") {
+      emit("content_block_start", {
+        type: "content_block_start",
+        index,
+        content_block: { type: "tool_use", id: block.id, name: block.name, input: {} },
+      });
+      emit("content_block_delta", {
+        type: "content_block_delta",
+        index,
+        delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input ?? {}) },
+      });
+    } else {
+      emit("content_block_start", { type: "content_block_start", index, content_block: { type: "text", text: "" } });
+      emit("content_block_delta", {
+        type: "content_block_delta",
+        index,
+        delta: { type: "text_delta", text: block.text ?? "" },
+      });
+    }
+    emit("content_block_stop", { type: "content_block_stop", index });
+  });
+  emit("message_delta", {
+    type: "message_delta",
+    delta: { stop_reason: message.stop_reason ?? "end_turn", stop_sequence: message.stop_sequence ?? null },
+    usage: message.usage,
+  });
+  emit("message_stop", { type: "message_stop" });
+  res.end();
+}
+
 /** Replay a gated (non-streamed) completion as a minimal SSE stream. */
 function writeAsSse(res: ServerResponse, completion: Completion): void {
   res.writeHead(200, {
@@ -165,9 +250,11 @@ export function startProxy(broker: Broker, opts: ProxyOptions): Server {
     try {
       const url = `${upstream}${req.url ?? "/"}`;
       const body = await readBody(req);
-      const isChat = (req.url ?? "").endsWith("/chat/completions") && req.method === "POST";
+      const path = (req.url ?? "").split("?")[0] ?? "";
+      const isChat = path.endsWith("/chat/completions") && req.method === "POST";
+      const isAnthropic = path.endsWith("/v1/messages") && req.method === "POST";
 
-      if (!isChat) {
+      if (!isChat && !isAnthropic) {
         // Transparent passthrough — same upstream the agent could reach directly.
         const upstreamRes = await fetch(url, {
           method: req.method,
@@ -202,12 +289,18 @@ export function startProxy(broker: Broker, opts: ProxyOptions): Server {
         return;
       }
 
-      const completion = (await upstreamRes.json()) as Completion;
-      const gated = await gateCompletion(broker, agent, completion);
-
-      if (wantsStream) return writeAsSse(res, gated);
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(gated));
+      const payload = (await upstreamRes.json()) as unknown;
+      if (isChat) {
+        const gated = await gateCompletion(broker, agent, payload as Completion);
+        if (wantsStream) return writeAsSse(res, gated);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(gated));
+      } else {
+        const gated = await gateAnthropicMessage(broker, agent, payload as AnthropicMessage);
+        if (wantsStream) return writeAsAnthropicSse(res, gated);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(gated));
+      }
     } catch (err) {
       // Upstream unreachable or body too large: block the turn, never guess.
       fail(502, `ClawGuard proxy could not complete the request — failing closed (${(err as Error).message})`);

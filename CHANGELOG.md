@@ -3,12 +3,18 @@
 ## Unreleased (v0.3-dev)
 
 - **LLM proxy mode (experimental).** Set `CLAWGUARD_PROXY_UPSTREAM` and point
-  any OpenAI-compatible agent's base URL at `127.0.0.1:4750`: the proxy gates
-  the `tool_calls` in every model response through the same policy engine —
-  no plugin required. One denied call blocks the whole response (fail
+  any agent's base URL at `127.0.0.1:4750`: the proxy gates the tool calls in
+  every model response through the same policy engine — no plugin required.
+  Speaks both OpenAI chat-completions (`tool_calls`) and Anthropic Messages
+  (`tool_use` blocks). One denied call blocks the whole response (fail
   closed); streamed requests are served as a buffered replay; the agent's own
   API key passes through and is never stored. Unit-tested; not yet verified
   against a live agent.
+- **Approval web UI.** `http://127.0.0.1:<port>/ui` — pending approvals with
+  live countdowns and Approve / Deny / Always-allow buttons, served straight
+  from the daemon, zero dependencies. Verified end-to-end in a real browser.
+  Same-user trust boundary as the token file; DNS rebinding blocked by
+  Host-header validation, which now protects the whole API.
 
 ## v0.2.0 — 2026-07-12
 

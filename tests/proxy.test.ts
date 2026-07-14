@@ -181,6 +181,69 @@ test("non-chat endpoints pass through; unreachable upstream fails closed with 50
   }
 });
 
+const anthropicMessageWith = (blocks: unknown[]) => ({
+  id: "msg-1",
+  type: "message",
+  role: "assistant",
+  model: "fake-claude",
+  content: blocks,
+  stop_reason: "tool_use",
+  usage: { input_tokens: 10, output_tokens: 5 },
+});
+
+test("anthropic: allowed tool_use passes through, denied rewrites to a text notice", async () => {
+  const { proxyUrl, upstream, close } = await setup();
+  try {
+    upstream.setNext(anthropicMessageWith([{ type: "tool_use", id: "t1", name: "read_file", input: { path: "ok.txt" } }]));
+    const ok = await fetch(`${proxyUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "agent-key" },
+      body: JSON.stringify({ model: "fake-claude", messages: [] }),
+    });
+    const okBody = (await ok.json()) as { content: { type: string }[]; stop_reason: string };
+    assert.equal(okBody.stop_reason, "tool_use");
+    assert.equal(okBody.content[0]!.type, "tool_use");
+
+    upstream.setNext(anthropicMessageWith([{ type: "tool_use", id: "t2", name: "read_file", input: { path: "app/.env" } }]));
+    const denied = await fetch(`${proxyUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "fake-claude", messages: [] }),
+    });
+    const deniedBody = (await denied.json()) as { content: { type: string; text?: string }[]; stop_reason: string };
+    assert.equal(deniedBody.stop_reason, "end_turn");
+    assert.equal(deniedBody.content.length, 1);
+    assert.match(deniedBody.content[0]!.text ?? "", /ClawGuard blocked 1 tool call/);
+  } finally {
+    close();
+  }
+});
+
+test("anthropic: stream:true replays the SSE event sequence with input_json_delta", async () => {
+  const { proxyUrl, upstream, close } = await setup();
+  try {
+    upstream.setNext(
+      anthropicMessageWith([
+        { type: "text", text: "let me check" },
+        { type: "tool_use", id: "t1", name: "read_file", input: { path: "ok.txt" } },
+      ]),
+    );
+    const res = await fetch(`${proxyUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "fake-claude", messages: [], stream: true }),
+    });
+    assert.match(res.headers.get("content-type") ?? "", /text\/event-stream/);
+    const text = await res.text();
+    for (const event of ["message_start", "content_block_start", "input_json_delta", "message_delta", "message_stop"]) {
+      assert.match(text, new RegExp(event), `missing ${event}`);
+    }
+    assert.equal(upstream.seen[0]!.body!.stream, false, "upstream must be called non-streaming");
+  } finally {
+    close();
+  }
+});
+
 test("tool argument parsing survives malformed and non-object JSON", () => {
   assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
   assert.deepEqual(parseToolArguments("not json"), { raw: "not json" });

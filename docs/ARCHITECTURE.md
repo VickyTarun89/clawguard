@@ -17,7 +17,8 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 | Console channel | `src/channels/console.ts` | Local stdin approvals for development |
 | WhatsApp channel | `src/channels/whatsapp.ts` | Meta Cloud API outbound; inbound replies via outbound-polling relay (`relay/` Worker) |
 | Telegram channel | `src/channels/telegram.ts` | Zero-infra path: outbound long-polling, inline Approve/Deny buttons, unforgeable numeric approver ids |
-| LLM proxy (experimental) | `src/proxy/server.ts` | OpenAI-compatible reverse proxy: gates `tool_calls` in model responses for any agent, no plugin; agent's own key passes through |
+| LLM proxy (experimental) | `src/proxy/server.ts` | Reverse proxy for OpenAI chat-completions AND Anthropic Messages: gates tool calls in model responses for any agent, no plugin; agent's own key passes through |
+| Approval web UI | `src/ui/page.ts` | Zero-dependency page at `/ui`: pending cards, countdowns, Approve/Deny/Always buttons; guarded by loopback bind + Host validation |
 | OpenClaw plugin | `integrations/openclaw/index.ts` | `before_tool_call` hook → `/v1/check`; blocks on anything but an explicit allow |
 | Hermes plugin | `integrations/hermes/plugin.py` | `pre_tool_call` gate + `post_tool_call` execution reports to `/v1/events` for bypass detection (upstream hook can silently not fire: hermes-agent#44582) |
 
@@ -50,7 +51,7 @@ The last two rows are why the roadmap ends at OS isolation: a policy broker insi
 ## Roadmap
 
 - **v0.2 — Approver authentication.** ✅ Shipped: pairing PINs + per-decision approval codes; "always allow this exact action" persisted rules; plugins re-read the token file on 401. Deferred from the original v0.2 list: audit chain-head checkpointing to the relay (below).
-- **v0.3 — Universal proxy mode.** In progress. The OpenAI-compatible proxy core is built (unit-tested, all-or-nothing deny, buffered SSE replay for streamed requests, fail-closed on upstream errors) but NOT yet verified against a real agent — treat as experimental. Remaining for the release: verify with a live agent, Anthropic Messages API format, audit chain-head checkpointing to the relay, localhost approval web UI.
+- **v0.3 — Universal proxy mode.** In progress. Built and unit-tested: the proxy core for OpenAI chat-completions AND Anthropic Messages (all-or-nothing deny, buffered SSE replay, fail-closed on upstream errors), plus the localhost approval web UI (verified in a real browser). Remaining for the release: verify the proxy against a live agent (the release gate), audit chain-head checkpointing to the relay.
 - **v0.4 — Windows execution tier.** Route `ask`-class shell/file actions into Windows Sandbox / Hyper-V isolation instead of the host; macOS (Apple containers) next. This is the underserved flank — the ecosystem is Mac/Linux-first.
 - **v0.5 — Skill scanner.** Static + LLM review of ClawHub/Hermes skills pre-install, flagging exfiltration and persistence patterns.
 

@@ -92,6 +92,7 @@ const tokenLine =
 
 console.log(
   `[ClawGuard] listening on 127.0.0.1:${port}\n` +
+    `[ClawGuard] approval UI: http://127.0.0.1:${port}/ui\n` +
     `[ClawGuard] policy: ${policy.hard_deny.length} hard_deny / ${policy.allow.length} allow / ${policy.ask.length} ask, unmatched → ${policy.defaults.unmatched}${remembered.size > 0 ? ` (+${remembered.size} remembered exact allow(s))` : ""}\n` +
     `[ClawGuard] API token${process.env.CLAWGUARD_TOKEN ? " from CLAWGUARD_TOKEN" : " (generated)"}: ${tokenLine}\n` +
     `[ClawGuard] token published for local plugins at: ${tokenFile}`,
