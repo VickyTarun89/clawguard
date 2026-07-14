@@ -96,6 +96,7 @@ export class TelegramChannel {
                 { text: "✅ Approve", callback_data: `a:${request.id}` },
                 { text: "⛔ Deny", callback_data: `d:${request.id}` },
               ],
+              [{ text: "📌 Always allow this exact action", callback_data: `r:${request.id}` }],
             ],
           },
         }).catch((err: unknown) => {
@@ -115,19 +116,21 @@ export class TelegramChannel {
 
     if (!this.#isApprover(cb.from)) return void (await ack("Not authorized."));
 
-    const match = (cb.data ?? "").match(/^([ad]):(\S+)$/);
+    const match = (cb.data ?? "").match(/^([adr]):(\S+)$/);
     if (!match) return void (await ack("Unrecognized action."));
 
-    const verdict = match[1] === "a" ? "allow" : "deny";
-    const decided = this.#queue.decide(match[2]!, verdict, `telegram:${cb.from.id}`);
-    await ack(decided ? `Recorded: ${verdict}.` : "Already decided or expired.");
+    const always = match[1] === "r";
+    const verdict = match[1] === "d" ? "deny" : "allow";
+    const decided = this.#queue.decide(match[2]!, verdict, `telegram:${cb.from.id}`, { always });
+    await ack(decided ? `Recorded: ${verdict}${always ? " (always)" : ""}.` : "Already decided or expired.");
 
     if (decided && cb.message) {
       // Replace the buttons so the thread shows the outcome.
+      const outcome = always ? "📌 ALWAYS ALLOWED" : verdict === "allow" ? "✅ APPROVED" : "⛔ DENIED";
       await this.#api("editMessageText", {
         chat_id: cb.message.chat.id,
         message_id: cb.message.message_id,
-        text: `${cb.message.text ?? "ClawGuard approval"}\n\n${verdict === "allow" ? "✅ APPROVED" : "⛔ DENIED"}`,
+        text: `${cb.message.text ?? "ClawGuard approval"}\n\n${outcome}`,
       }).catch(() => {});
     }
   }

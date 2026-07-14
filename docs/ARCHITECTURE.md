@@ -10,7 +10,8 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 |---|---|---|
 | Policy engine | `src/policy/engine.ts` | Pure evaluation: `hard_deny` > `allow` > `ask` > default (`ask`/`deny` only) |
 | Broker | `src/broker.ts` | Orchestrates evaluate → (maybe) human approval → audit, returns verdict |
-| Approval queue | `src/approval/queue.ts` | Pending decisions with TTL; timeout resolves to deny, never allow |
+| Approval queue | `src/approval/queue.ts` | Pending decisions with TTL; timeout resolves to deny, never allow; issues single-use approval codes (per-decision nonces) |
+| Remembered rules | `src/remember.ts` | "Always allow this exact action" store: SHA-256 of agent+tool+canonical params, consulted only when policy says *ask* |
 | Audit log | `src/audit/log.ts` | Append-only JSONL, each entry SHA-256-commits to the previous (tamper-evident) |
 | HTTP API | `src/server.ts` | Loopback-only, bearer-token-only: `/v1/check`, `/v1/decisions`, `/v1/pending`, `/v1/health` |
 | Console channel | `src/channels/console.ts` | Local stdin approvals for development |
@@ -25,7 +26,9 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 
 **Fail-closed everywhere.** Plugin can't reach the daemon → block. Non-200 → block. Approval timeout → deny. The type system enforces some of this: `defaults.unmatched` is `"ask" | "deny"` and `on_timeout` is `"deny"` — permissive defaults are unrepresentable, and the loader re-validates at runtime.
 
-**WhatsApp as the human-in-the-loop, not an attack surface.** Inversion of the OpenClaw model (where the chat channel *drives* the agent). Here the channel only carries approval verdicts for already-summarized actions. Inbound uses a relay the daemon polls (Cloudflare Worker receiving the Cloud API webhook, queueing messages) — zero inbound ports on the user's machine. v0.1 authorization = sender allowlist; **known weakness:** WhatsApp sender identity is not proof of the human. v0.2 adds pairing codes (per-approver secret established out-of-band, quoted in each verdict) and per-decision nonces.
+**WhatsApp as the human-in-the-loop, not an attack surface.** Inversion of the OpenClaw model (where the chat channel *drives* the agent). Here the channel only carries approval verdicts for already-summarized actions. Inbound uses a relay the daemon polls (Cloudflare Worker receiving the Cloud API webhook, queueing messages) — zero inbound ports on the user's machine. Authorization (v0.2): sender allowlist + per-approver pairing PINs (`WA_APPROVER_PINS`, established out-of-band, quoted in each reply) + per-decision single-use approval codes. Without PINs configured, WhatsApp falls back to allowlist-only and the daemon warns at startup.
+
+**Remembered allows narrow the ask fatigue, not the policy.** "Always allow this exact action" persists a SHA-256 over agent + tool + canonically-serialized params. It is consulted only when the policy verdict is *ask* — `hard_deny` and `deny` evaluate first and can never be remembered around — and an exact-match miss (any param differs) asks again. Every hit is audited as `decidedBy: "remembered"`.
 
 **Tamper-evident, not tamper-proof, audit.** Hash-chained JSONL detects modification but a root-privileged attacker can truncate-and-rebuild. Mitigation path: periodic chain-head checkpoints published off-machine (e.g., to the relay). Good enough for v0.1's honest claim: "you can trust the log wasn't quietly edited."
 
@@ -37,7 +40,7 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 | Malicious skill exfiltrates `.env` / SSH keys | ✅ | `params_contain` hard-deny on key material for *all* tools |
 | Agent modifies its own guardrails | ✅ | Policy hard-denies touching `policy.yaml` / ClawGuard files |
 | Attacker on LAN hits the daemon API | ✅ | Loopback bind + mandatory bearer token |
-| Spoofed WhatsApp approval | ⚠️ | Sender allowlist only — pairing codes in v0.2 |
+| Spoofed WhatsApp approval | ✅* | Sender allowlist + pairing PIN per reply + single-use approval codes (*allowlist-only if `WA_APPROVER_PINS` unset) |
 | Compromised OS user account | ❌ | Out of scope until the sandbox tier — ClawGuard runs as the same user |
 | Agent bypasses the plugin entirely (raw syscalls) | ❌ | Requires OS-level enforcement — v0.4 sandbox tier |
 
@@ -45,8 +48,8 @@ The last two rows are why the roadmap ends at OS isolation: a policy broker insi
 
 ## Roadmap
 
-- **v0.2 — Approver authentication.** Pairing codes + per-decision nonces; "always allow this exact action" persisted rules; audit chain-head checkpointing to the relay.
-- **v0.3 — Universal proxy mode.** An LLM-API proxy (Anthropic/OpenAI-compatible) that holds `tool_use` responses until approved — covers Hermes and any agent, no plugin needed.
+- **v0.2 — Approver authentication.** ✅ Shipped: pairing PINs + per-decision approval codes; "always allow this exact action" persisted rules; plugins re-read the token file on 401. Deferred from the original v0.2 list: audit chain-head checkpointing to the relay (below).
+- **v0.3 — Universal proxy mode.** An LLM-API proxy (Anthropic/OpenAI-compatible) that holds `tool_use` responses until approved — covers Hermes and any agent, no plugin needed. Also: audit chain-head checkpointing to the relay; localhost approval web UI.
 - **v0.4 — Windows execution tier.** Route `ask`-class shell/file actions into Windows Sandbox / Hyper-V isolation instead of the host; macOS (Apple containers) next. This is the underserved flank — the ecosystem is Mac/Linux-first.
 - **v0.5 — Skill scanner.** Static + LLM review of ClawHub/Hermes skills pre-install, flagging exfiltration and persistence patterns.
 

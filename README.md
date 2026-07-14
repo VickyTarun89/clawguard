@@ -68,9 +68,9 @@ Then connect your agent — both plugins talk to the same daemon, and one policy
 
 Approvals arrive with inline **✅ Approve / ⛔ Deny buttons** — tap to decide. The daemon long-polls Telegram outbound-only: no webhook, no relay, no extra accounts.
 
-**WhatsApp (the flagship — ~25 minutes, self-hosted):** deploy the free relay Worker in [`relay/`](relay/) (full walkthrough in its [README](relay/README.md)), then set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), `WA_RELAY_URL`, and `WA_RELAY_TOKEN`.
+**WhatsApp (the flagship — ~25 minutes, self-hosted):** deploy the free relay Worker in [`relay/`](relay/) (full walkthrough in its [README](relay/README.md)), then set `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APPROVERS` (comma-separated E.164), `WA_RELAY_URL`, and `WA_RELAY_TOKEN`. Strongly recommended: also set `WA_APPROVER_PINS` so each decision reply must quote a PIN only you know — reply `YES <code> <pin>`, `NO <code> <pin>`, or `ALWAYS <code> <pin>`.
 
-**Console (zero setup):** on by default — approve with `a <id>` / `d <id>` in the terminal.
+**Console (zero setup):** on by default — approve with `a <code>`, deny with `d <code>`, or `aa <code>` to allow and never ask again for that exact action.
 
 Try it without an agent:
 
@@ -83,7 +83,14 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 ## Status
 
-`v0.1` — working core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins).
+`v0.2` — the v0.1 core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins) plus:
+
+- **Short approval codes** — every pending request gets a single-use 6-character code (`YES K7M2QF` beats typing a UUID). A code dies with its decision, so a leaked or replayed old approval is worthless.
+- **WhatsApp pairing PINs** — set `WA_APPROVER_PINS` and each approver must quote their PIN in every reply; a spoofed or SIM-swapped sender number alone can no longer approve. (Telegram already authorizes by Telegram-assigned numeric user id, which other users cannot spoof.)
+- **"Always allow this exact action"** — tap 📌 on Telegram, reply `ALWAYS <code>`, or type `aa <code>` in the console, and that *exact* action (same agent, tool, and parameters — byte-for-byte) stops asking. Anything different still asks, and a `hard_deny` can never be remembered around. Rules live in `data/remembered.json`; delete an entry to revoke.
+- **Plugins survive daemon restarts** — on a 401 the plugins re-read `~/.clawguard/token` and retry once, so restarting the daemon no longer strands a running gateway.
+
+The v0.2 additions were exercised against a live daemon: all three verdicts, code-based approval, remembered-allow persistence, timeout auto-deny, and the token refresh for both plugins — the OpenClaw plugin was verified inside a live gateway (agent kept working across a daemon restart that changed the token, and was blocked fail-closed when the daemon was down). The table below is the original v0.1 end-to-end verification.
 
 **Verified end-to-end against OpenClaw 2026.6.11 on native Windows.** All three verdict paths were exercised against a live agent:
 
@@ -95,7 +102,7 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 Every request and decision landed in the hash-chained log, which still verifies.
 
-Not yet independently audited; treat it as a second lock, not a vault. See [SECURITY.md](SECURITY.md) for the threat model and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and roadmap (pairing-code approver auth, universal LLM-proxy mode for any agent, OS sandbox execution tier).
+Not yet independently audited; treat it as a second lock, not a vault. See [SECURITY.md](SECURITY.md) for the threat model and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and roadmap (universal LLM-proxy mode for any agent, OS sandbox execution tier, skill scanner).
 
 ## What gets protected (not just `.env` files)
 

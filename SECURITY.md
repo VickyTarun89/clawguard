@@ -18,7 +18,7 @@ bug bounty — this is an unfunded open-source project.
 
 ## Supported versions
 
-`v0.1` is pre-1.0 and moves fast. Only the latest `master` receives fixes.
+`v0.2` is pre-1.0 and moves fast. Only the latest `master` receives fixes.
 
 ## What ClawGuard defends against
 
@@ -33,6 +33,12 @@ bug bounty — this is an unfunded open-source project.
   silent approval.
 - Undetected tampering with the record: the audit log is a SHA-256 hash chain;
   editing any past entry breaks verification.
+- Approval replay and (with PINs set) approver spoofing: every pending request
+  carries a single-use approval code that dies with the decision, and WhatsApp
+  approvers with a `WA_APPROVER_PINS` entry must quote their PIN in every
+  reply — a spoofed or SIM-swapped sender number alone cannot approve.
+  Telegram authorizes by Telegram-assigned numeric user id, which other users
+  cannot spoof.
 
 ## What ClawGuard does NOT defend against
 
@@ -51,10 +57,13 @@ reputation. **ClawGuard is a second lock, not a vault.**
   will pass that allow rule. Keep `allow` globs narrow.
 - **A hostile local process.** Any process running as your user can read
   `~/.clawguard/token` and call the API — exactly as it could read your
-  environment variables.
-- **Approver impersonation, partially.** v0.1 authorizes approvals by Telegram
-  numeric user id or WhatsApp sender number. Per-device pairing codes and
-  per-decision nonces are planned for v0.2.
+  environment variables. The same applies to `data/remembered.json` (the
+  "always allow" rules): it is plain JSON in the same trust boundary, so a
+  process running as your user could edit it. Remembered rules only ever
+  convert a would-*ask* into an allow — they can never override `hard_deny`.
+- **WhatsApp approver impersonation, if you skip PINs.** Without
+  `WA_APPROVER_PINS`, WhatsApp approvals are authorized by sender allowlist
+  only, and sender identity is not proof of the human. Set PINs.
 
 ## Audit status
 

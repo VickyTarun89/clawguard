@@ -30,22 +30,35 @@ function resolveToken() {
     return "";
   }
 }
-const GUARD_TOKEN = resolveToken();
+let guardToken = resolveToken();
 // A check may legitimately take as long as the human-approval window
 // (daemon default ask_timeout is 120s), so leave headroom past that.
 const CHECK_TIMEOUT_MS = Number(process.env.CLAWGUARD_CHECK_TIMEOUT_MS ?? 150000);
 const REPORT_TIMEOUT_MS = 5000;
 
-async function post(path, payload, timeoutMs) {
+async function postOnce(path, payload, timeoutMs) {
   return fetch(`${GUARD_URL}${path}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${GUARD_TOKEN}`,
+      authorization: `Bearer ${guardToken}`,
       "content-type": "application/json",
     },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(timeoutMs),
   });
+}
+
+// A restarted daemon publishes a fresh token to the token file; a token cached
+// at plugin load would then 401 every call until the gateway restarts. On 401,
+// re-read the file and retry once. Still fail-closed: a retry that also fails
+// leaves the non-OK response for the caller to block on.
+async function post(path, payload, timeoutMs) {
+  const res = await postOnce(path, payload, timeoutMs);
+  if (res.status !== 401 || process.env.CLAWGUARD_TOKEN) return res;
+  const fresh = resolveToken();
+  if (!fresh || fresh === guardToken) return res;
+  guardToken = fresh;
+  return postOnce(path, payload, timeoutMs);
 }
 
 export default definePluginEntry({

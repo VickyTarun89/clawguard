@@ -3,6 +3,7 @@ import type { ActionRequest, Decision, Policy } from "./types.ts";
 import { evaluate } from "./policy/engine.ts";
 import type { ApprovalQueue } from "./approval/queue.ts";
 import type { AuditLog } from "./audit/log.ts";
+import type { RememberedStore } from "./remember.ts";
 
 export interface CheckInput {
   agent: string;
@@ -14,11 +15,13 @@ export class Broker {
   readonly policy: Policy;
   readonly queue: ApprovalQueue;
   readonly audit: AuditLog;
+  readonly remembered: RememberedStore;
 
-  constructor(policy: Policy, queue: ApprovalQueue, audit: AuditLog) {
+  constructor(policy: Policy, queue: ApprovalQueue, audit: AuditLog, remembered: RememberedStore) {
     this.policy = policy;
     this.queue = queue;
     this.audit = audit;
+    this.remembered = remembered;
   }
 
   #summarize(req: ActionRequest): string {
@@ -66,20 +69,38 @@ export class Broker {
     const evaluation = evaluate(this.policy, req);
     this.audit.append({ type: "action.requested", request: req, evaluation });
 
-    if (evaluation.verdict === "deny") {
-      console.log(`[ClawGuard] ⛔ DENY  ${this.#line(req)} — ${evaluation.rule ?? evaluation.reason}`);
+    // Remembered "always allow" rules apply ONLY to would-ask actions: policy
+    // evaluates first, so a hard_deny (or deny) can never be remembered around.
+    const remembered = evaluation.verdict === "ask" ? this.remembered.find(req) : undefined;
+
+    let decision: Decision;
+    if (remembered) {
+      decision = {
+        verdict: "allow",
+        reason: `remembered exact action (always-allowed by ${remembered.approver} on ${remembered.createdAt.slice(0, 10)})`,
+        rule: "remembered",
+        decidedBy: "remembered",
+      };
+      console.log(`[ClawGuard] 📌 ALLOW ${this.#line(req)} — remembered exact action`);
     } else if (evaluation.verdict === "ask") {
       console.log(`[ClawGuard] ⏳ ASK   ${this.#line(req)} — waiting for your approval…`);
+      decision = await this.queue.ask(req, this.#summarize(req), this.policy.defaults.ask_timeout_seconds * 1000);
+    } else {
+      if (evaluation.verdict === "deny") {
+        console.log(`[ClawGuard] ⛔ DENY  ${this.#line(req)} — ${evaluation.rule ?? evaluation.reason}`);
+      }
+      decision = { verdict: evaluation.verdict, reason: evaluation.reason, rule: evaluation.rule, decidedBy: "policy" };
     }
-
-    const decision: Decision =
-      evaluation.verdict === "ask"
-        ? await this.queue.ask(req, this.#summarize(req), this.policy.defaults.ask_timeout_seconds * 1000)
-        : { verdict: evaluation.verdict, reason: evaluation.reason, rule: evaluation.rule, decidedBy: "policy" };
 
     this.audit.append({ type: "action.decided", requestId: req.id, decision });
 
-    if (evaluation.verdict === "ask") {
+    if (decision.decidedBy === "human" && decision.verdict === "allow" && decision.remember) {
+      const rule = this.remembered.add(req, decision.approver ?? "unknown");
+      this.audit.append({ type: "rule.remembered", key: rule.key, agent: req.agent, tool: req.tool, params: req.params, approver: rule.approver });
+      console.log(`[ClawGuard] 📌 remembered — this exact action will auto-allow from now on (delete data/remembered.json to revoke)`);
+    }
+
+    if (decision.decidedBy === "human" || decision.decidedBy === "timeout") {
       const icon = decision.verdict === "allow" ? "✅ ALLOW" : "⛔ DENY ";
       const by = decision.decidedBy === "human" ? `you (${decision.approver})` : decision.decidedBy;
       console.log(`[ClawGuard] ${icon} ${this.#line(req)} — decided by ${by}`);

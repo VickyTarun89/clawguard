@@ -1,14 +1,8 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
-import { timingSafeEqual } from "node:crypto";
 import type { Broker } from "./broker.ts";
+import { safeEqual } from "./util/safe-equal.ts";
 
 const MAX_BODY_BYTES = 1024 * 1024;
-
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
-}
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -72,7 +66,9 @@ export function startServer(broker: Broker, opts: { port: number; token: string 
         const valid =
           typeof body.id === "string" && (body.verdict === "allow" || body.verdict === "deny");
         const ok = valid
-          ? broker.queue.decide(body.id as string, body.verdict as "allow" | "deny", String(body.approver ?? "api"))
+          ? broker.queue.decide(body.id as string, body.verdict as "allow" | "deny", String(body.approver ?? "api"), {
+              always: body.always === true,
+            })
           : false;
         return send(ok ? 200 : 404, ok ? { ok: true } : { error: "no such pending approval" });
       }

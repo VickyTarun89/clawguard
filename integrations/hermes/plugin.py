@@ -18,6 +18,7 @@ environment. Verify the packaging shape against your hermes-agent version's
 
 import json
 import os
+import urllib.error
 import urllib.request
 
 
@@ -38,25 +39,43 @@ def _resolve_token():
 
 
 GUARD_URL = os.environ.get("CLAWGUARD_URL", "http://127.0.0.1:4747")
-GUARD_TOKEN = _resolve_token()
+_guard_token = _resolve_token()
 # A check may legitimately take as long as the human-approval window
 # (daemon default ask_timeout is 120s), so leave headroom past that.
 CHECK_TIMEOUT_S = float(os.environ.get("CLAWGUARD_CHECK_TIMEOUT", "150"))
 REPORT_TIMEOUT_S = 5.0
 
 
-def _post(path, payload, timeout):
+def _post_once(path, payload, timeout):
     req = urllib.request.Request(
         GUARD_URL + path,
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": "Bearer " + GUARD_TOKEN,
+            "Authorization": "Bearer " + _guard_token,
             "Content-Type": "application/json",
         },
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=timeout) as res:
         return json.loads(res.read().decode("utf-8"))
+
+
+def _post(path, payload, timeout):
+    """A restarted daemon publishes a fresh token; a token cached at plugin load
+    would then 401 every call until the agent restarts. On 401, re-read the
+    token file and retry once. Still fail-closed: a failing retry raises, and
+    the callers block on any exception."""
+    global _guard_token
+    try:
+        return _post_once(path, payload, timeout)
+    except urllib.error.HTTPError as err:
+        if err.code != 401 or os.environ.get("CLAWGUARD_TOKEN"):
+            raise
+        fresh = _resolve_token()
+        if not fresh or fresh == _guard_token:
+            raise
+        _guard_token = fresh
+        return _post_once(path, payload, timeout)
 
 
 def _params(args):

@@ -14,8 +14,11 @@ export interface Decision {
   verdict: "allow" | "deny";
   reason: string;
   rule?: string;
-  decidedBy: "policy" | "human" | "timeout";
+  /** "remembered" = matched a persisted "always allow this exact action" rule. */
+  decidedBy: "policy" | "human" | "timeout" | "remembered";
   approver?: string;
+  /** Human chose "always allow": persist this exact action as a remembered rule. */
+  remember?: boolean;
 }
 
 export interface PolicyRule {
@@ -49,4 +52,10 @@ export interface PendingEvent {
   request: ActionRequest;
   summary: string;
   expiresAt: number;
+  /**
+   * Short single-use approval code, unique among pending requests. Doubles as
+   * the per-decision nonce: knowing an old request's id is not enough to
+   * approve a new one, and a code dies with its decision.
+   */
+  code: string;
 }
