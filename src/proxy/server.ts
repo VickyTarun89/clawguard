@@ -255,11 +255,19 @@ export function startProxy(broker: Broker, opts: ProxyOptions): Server {
       const isAnthropic = path.endsWith("/v1/messages") && req.method === "POST";
 
       if (!isChat && !isAnthropic) {
-        // Transparent passthrough — same upstream the agent could reach directly.
+        // Only read-style requests pass through (model lists, health checks).
+        // Any other POST is refused: a native-protocol agent (e.g. Gemini
+        // generateContent) routed here would otherwise have its tool calls
+        // silently NOT gated — a fail-open bypass wearing a proxy costume.
+        if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+          return fail(
+            403,
+            `ClawGuard proxy gates only OpenAI chat-completions and Anthropic /v1/messages; refusing ungated ${req.method} ${path} — failing closed. Point your agent at a supported API format.`,
+          );
+        }
         const upstreamRes = await fetch(url, {
           method: req.method,
           headers: forwardHeaders(req),
-          body: body.length > 0 ? Uint8Array.from(body) : undefined,
         });
         res.writeHead(upstreamRes.status, { "content-type": upstreamRes.headers.get("content-type") ?? "application/json" });
         res.end(Buffer.from(await upstreamRes.arrayBuffer()));

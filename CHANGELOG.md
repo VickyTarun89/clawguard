@@ -8,8 +8,16 @@
   Speaks both OpenAI chat-completions (`tool_calls`) and Anthropic Messages
   (`tool_use` blocks). One denied call blocks the whole response (fail
   closed); streamed requests are served as a buffered replay; the agent's own
-  API key passes through and is never stored. Unit-tested; not yet verified
-  against a live agent.
+  API key passes through and is never stored. A POST to any non-gated endpoint
+  is refused rather than passed through, so a native-protocol agent can't
+  route around the gate.
+
+  Verified against a real model (Qwen3.5-9B on Ollama) with **no plugin
+  installed**: a model tool call reaching for a `.env` file was hard-denied
+  and stripped from the response; a benign `read_file` passed through intact.
+  OpenClaw connects through the proxy (provider routes correctly), but driving
+  a full multi-step agent turn needs a stronger tool-capable model than the
+  local 9B — full agent-loop verification is still pending.
 - **Approval web UI.** `http://127.0.0.1:<port>/ui` — pending approvals with
   live countdowns and Approve / Deny / Always-allow buttons, served straight
   from the daemon, zero dependencies. Verified end-to-end in a real browser.

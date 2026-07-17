@@ -163,6 +163,21 @@ test("stream:true is served as a buffered SSE replay ending in [DONE]", async ()
   }
 });
 
+test("POST to an ungated endpoint is refused — no silent bypass for native protocols", async () => {
+  const { proxyUrl, close } = await setup();
+  try {
+    const res = await fetch(`${proxyUrl}/v1beta/models/gemini:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ contents: [] }),
+    });
+    assert.equal(res.status, 403);
+    assert.match(await res.text(), /failing closed/);
+  } finally {
+    close();
+  }
+});
+
 test("non-chat endpoints pass through; unreachable upstream fails closed with 502", async () => {
   const { proxyUrl, upstream, close } = await setup();
   try {
