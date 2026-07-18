@@ -69,7 +69,14 @@ CLAWGUARD_PROXY_UPSTREAM=https://api.openai.com   # or any OpenAI/Anthropic-comp
 
 Then set your agent's base URL to `http://127.0.0.1:4750` and keep using your own API key — it passes straight through and ClawGuard never stores it. Speaks **OpenAI chat-completions** (`tool_calls`) and **Anthropic Messages** (`tool_use`). If any call in a response is denied, the whole response is replaced with a plain explanation, so the agent never receives an instruction it isn't allowed to run. A POST to an endpoint ClawGuard can't gate is refused rather than forwarded — no silent bypass.
 
-**Status:** verified against real models (Qwen3.5-9B and Gemma4-e4b via Ollama) with no plugin installed — a tool call reaching for a `.env` file was blocked and stripped, a benign read passed through. Driving a full multi-step agent turn end-to-end is still unverified: local models on the test machine ran out of context window and gateway timeout before completing one. Treat proxy mode as experimental until that's closed out; the plugins above are the verified path.
+**Verified end-to-end against OpenClaw 2026.6.11 with the ClawGuard plugin uninstalled**, using Gemini 2.5 Flash through the proxy:
+
+| Agent turn | ClawGuard | Result |
+|---|---|---|
+| read `package.json` | `allow` | tool call flows; agent completes the turn and answers normally |
+| read `secrets.env` | `hard_deny` at the proxy | agent replies *"ClawGuard blocked 1 tool call(s): read: matched hard_deny rule"* — it never receives the instruction |
+
+Also exercised against local models (Qwen3.5-9B, Gemma4-e4b via Ollama) and both API formats. Every gated call lands in the same hash-chained audit log, tagged `llm-proxy`.
 
 ### Approving in a browser
 
@@ -100,7 +107,7 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 ## Status
 
-`v0.3-dev` (unreleased) adds **proxy mode** — gate any agent with no plugin — and a **browser approval page** at `/ui`, both described above. Proxy gating is verified against real models; a full multi-step agent turn through it is not yet verified, so it ships marked experimental.
+`v0.3-dev` (unreleased) adds **proxy mode** — gate any agent with no plugin — and a **browser approval page** at `/ui`, both described above. Both are verified end-to-end: a real OpenClaw agent running on Gemini 2.5 Flash was gated through the proxy with no plugin installed.
 
 `v0.2` — the v0.1 core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins) plus:
 
