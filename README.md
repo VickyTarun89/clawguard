@@ -58,6 +58,23 @@ Then connect your agent — both plugins talk to the same daemon, and one policy
 - **Hermes Agent:** copy [`integrations/hermes/`](integrations/hermes/) to `~/.hermes/plugins/clawguard/` — it hooks `pre_tool_call` to gate execution *and* reports executed calls back, so the audit log exposes any tool call that bypassed the check (**bypass detection**). See its [README](integrations/hermes/README.md).
 - **Anything else:** the daemon is agent-agnostic — `POST /v1/check {agent, tool, params}`, act only on `"allow"`. An adapter is ~50 lines.
 
+### No plugin at all — proxy mode (experimental)
+
+Some agents have no plugin API, or you'd rather not install one. Point the agent's LLM base URL at ClawGuard instead: it sits between the agent and the model provider, reads the tool calls out of every model response, and runs them through the same policy before the agent ever sees them.
+
+```bash
+# .env
+CLAWGUARD_PROXY_UPSTREAM=https://api.openai.com   # or any OpenAI/Anthropic-compatible endpoint
+```
+
+Then set your agent's base URL to `http://127.0.0.1:4750` and keep using your own API key — it passes straight through and ClawGuard never stores it. Speaks **OpenAI chat-completions** (`tool_calls`) and **Anthropic Messages** (`tool_use`). If any call in a response is denied, the whole response is replaced with a plain explanation, so the agent never receives an instruction it isn't allowed to run. A POST to an endpoint ClawGuard can't gate is refused rather than forwarded — no silent bypass.
+
+**Status:** verified against real models (Qwen3.5-9B and Gemma4-e4b via Ollama) with no plugin installed — a tool call reaching for a `.env` file was blocked and stripped, a benign read passed through. Driving a full multi-step agent turn end-to-end is still unverified: local models on the test machine ran out of context window and gateway timeout before completing one. Treat proxy mode as experimental until that's closed out; the plugins above are the verified path.
+
+### Approving in a browser
+
+Every pending approval also shows up at **`http://127.0.0.1:4747/ui`** — a zero-dependency page with the pending action, a live auto-deny countdown, and Approve / Deny / Always-allow buttons. Loopback-only, and the daemon rejects any request whose `Host` header isn't localhost, so a malicious website can't reach it via DNS rebinding.
+
 ### Phone approvals — pick your channel
 
 **Telegram (recommended — ~3 minutes, zero infrastructure):**
@@ -82,6 +99,8 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 ```
 
 ## Status
+
+`v0.3-dev` (unreleased) adds **proxy mode** — gate any agent with no plugin — and a **browser approval page** at `/ui`, both described above. Proxy gating is verified against real models; a full multi-step agent turn through it is not yet verified, so it ships marked experimental.
 
 `v0.2` — the v0.1 core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins) plus:
 
