@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased (v0.3-dev)
+## v0.3.0 — 2026-07-18
+
+Universal proxy mode: gate any agent, no plugin required. Plus approvals in
+the browser.
 
 - **LLM proxy mode (experimental).** Set `CLAWGUARD_PROXY_UPSTREAM` and point
   any agent's base URL at `127.0.0.1:4750`: the proxy gates the tool calls in

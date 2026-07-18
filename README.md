@@ -107,7 +107,7 @@ curl -s -X POST http://127.0.0.1:4747/v1/check \
 
 ## Status
 
-`v0.3-dev` (unreleased) adds **proxy mode** — gate any agent with no plugin — and a **browser approval page** at `/ui`, both described above. Both are verified end-to-end: a real OpenClaw agent running on Gemini 2.5 Flash was gated through the proxy with no plugin installed.
+`v0.3` adds **proxy mode** — gate any agent with no plugin — and a **browser approval page** at `/ui`, both described above. Both are verified end-to-end: a real OpenClaw agent running on Gemini 2.5 Flash was gated through the proxy with no plugin installed.
 
 `v0.2` — the v0.1 core (policy engine, approval queue, audit chain, HTTP API, console + Telegram + WhatsApp channels, OpenClaw + Hermes plugins) plus:
 

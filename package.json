@@ -1,6 +1,6 @@
 {
   "name": "clawguard",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Default-deny firewall and human-approval gateway for personal AI agents (OpenClaw, Hermes, and friends).",
   "license": "MIT",
   "type": "module",
