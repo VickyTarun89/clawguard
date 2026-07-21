@@ -16,8 +16,12 @@ hard_deny:                  # blocked instantly — no human can approve
     command: ["*rm -rf*", "*format *", "*mkfs*", "*del /f*", "*rmdir /s*"]
 
 allow:                      # low-risk, flows without friction
-  - note: reading ordinary files is fine
+  # Narrow on purpose: every path you allow is a path the agent can touch
+  # without asking. Anything NOT listed here falls through to "ask" — which
+  # is why your bank statement is protected without a rule naming it.
+  - note: project and note files are fine to read
     tool: read*
+    path: ["*notes.txt", "*.md", "*.json"]
   - note: safe read-only git
     tool: exec*
     command: ["git status", "git diff*", "git log*"]
