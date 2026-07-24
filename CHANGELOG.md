@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased (v0.4-dev)
+
+### Added
+- **Agent History.** A `History` tab in the approval UI (and `GET /v1/history`)
+  showing everything the agent has tried: what it asked for, what the policy
+  said, who decided, and whether it was allowed or blocked — newest first,
+  with a **chain verified / CHAIN BROKEN** badge so the page states plainly
+  whether the record has been edited. Requests and decisions are joined back
+  into one row each; daemon restarts are hidden behind a toggle.
+
+### Fixed
+- **Glob: a leading `**/` now matches bare paths.** `**/.ssh/**` previously
+  failed to match the relative path `.ssh/id_rsa` because the leading path
+  segments were mandatory — a `hard_deny` rule written that way looked
+  present but let the action fall through to the ask tier. Shipped policies
+  were unaffected (they match key material by substring), but the commented
+  example in `policy.example.yaml` used this shape.
+- **The approval page is no longer cached.** A cached copy survived an
+  upgrade and served the old UI — and an old token — after a restart.
+
 ## v0.3.0 — 2026-07-18
 
 Universal proxy mode: gate any agent, no plugin required. Plus approvals in

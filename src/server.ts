@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { Broker } from "./broker.ts";
 import { safeEqual } from "./util/safe-equal.ts";
 import { renderApprovalsPage } from "./ui/page.ts";
+import { readHistory } from "./audit/history.ts";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -38,7 +39,13 @@ export function startServer(broker: Broker, opts: { port: number; token: string 
       // to the token file it embeds (loopback bind + Host check above; see
       // src/ui/page.ts for the full reasoning).
       if (req.method === "GET" && url.pathname === "/ui") {
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        // Never cache: the page ships inside the daemon, so a cached copy
+        // survives an upgrade and silently serves the old UI (and an old
+        // token) after a restart.
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store, must-revalidate",
+        });
         return void res.end(renderApprovalsPage(opts.token));
       }
 
@@ -50,6 +57,12 @@ export function startServer(broker: Broker, opts: { port: number; token: string 
 
       if (req.method === "GET" && url.pathname === "/v1/pending") {
         return send(200, { pending: broker.queue.list() });
+      }
+
+      if (req.method === "GET" && url.pathname === "/v1/history") {
+        const raw = Number(url.searchParams.get("limit") ?? 100);
+        const limit = Number.isFinite(raw) ? Math.min(Math.max(1, raw), 1000) : 100;
+        return send(200, readHistory(broker.audit.path, limit));
       }
 
       if (req.method === "POST" && url.pathname === "/v1/check") {

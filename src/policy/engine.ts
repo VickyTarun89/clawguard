@@ -1,11 +1,18 @@
 import type { ActionRequest, Policy, PolicyRule, RuleVerdict } from "../types.ts";
 
 export function globToRegExp(glob: string): RegExp {
-  const escaped = glob
+  // A leading "**/" means "any number of leading path segments, including
+  // none", so "**/.ssh/**" has to match the relative path ".ssh/id_rsa" as
+  // well as "C:/Users/me/.ssh/id_rsa". Without this the leading segments are
+  // mandatory, and a hard_deny rule silently fails to match relative paths —
+  // the rule looks present but the action falls through to the ask tier.
+  const anyLeadingSegments = glob.startsWith("**/");
+  const rest = anyLeadingSegments ? glob.slice(3) : glob;
+  const escaped = rest
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*/g, "[\\s\\S]*")
     .replace(/\?/g, ".");
-  return new RegExp(`^${escaped}$`, "i");
+  return new RegExp(`^${anyLeadingSegments ? "(?:[\\s\\S]*/)?" : ""}${escaped}$`, "i");
 }
 
 function stringParam(params: Record<string, unknown>, keys: string[]): string | undefined {

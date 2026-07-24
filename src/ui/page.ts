@@ -46,6 +46,28 @@ export function renderApprovalsPage(token: string): string {
   .always { background: #1f6feb22; border-color: #1f6feb; }
   .outcome { font-weight: 600; margin-top: 8px; font-size: 13px; }
   footer { text-align: center; color: #484f58; font-size: 12px; padding: 24px; }
+
+  nav { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid #21262d; }
+  nav button { border: none; border-bottom: 2px solid transparent; border-radius: 0;
+               background: none; color: #8b949e; padding: 10px 14px; font-size: 14px; }
+  nav button.on { color: #e6edf3; border-bottom-color: #f78166; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+           font-weight: 600; letter-spacing: .02em; }
+  .ok { background: #1a7f3733; color: #3fb950; border: 1px solid #2ea04366; }
+  .bad { background: #b6232433; color: #f85149; border: 1px solid #da363366; }
+  .chainbar { display: flex; justify-content: space-between; align-items: center;
+              margin-bottom: 14px; font-size: 12px; color: #8b949e; }
+  .h { display: grid; grid-template-columns: 62px 1fr auto; gap: 10px; align-items: baseline;
+       padding: 9px 12px; border-bottom: 1px solid #21262d; font-size: 13px; }
+  .h:hover { background: #161b22; }
+  .h time { color: #6e7681; font-variant-numeric: tabular-nums; font-size: 12px; }
+  .h .what { min-width: 0; }
+  .h .tool { font-weight: 600; }
+  .h .prm { color: #8b949e; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .h .by { color: #6e7681; font-size: 11px; }
+  .v { font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .v-allow { color: #3fb950; } .v-deny { color: #f85149; } .v-info { color: #8b949e; }
 </style>
 </head>
 <body>
@@ -53,9 +75,25 @@ export function renderApprovalsPage(token: string): string {
   <h1>🛡️ ClawGuard</h1>
   <span class="sub">approvals — auto-deny on timeout, always</span>
 </header>
+<nav>
+  <button id="tab-pending" class="on" onclick="showTab('pending')">Pending</button>
+  <button id="tab-history" onclick="showTab('history')">History</button>
+</nav>
 <main>
-  <div id="list"></div>
-  <div id="empty" class="empty">Nothing waiting. Your agent is behaving.</div>
+  <div id="view-pending">
+    <div id="list"></div>
+    <div id="empty" class="empty">Nothing waiting. Your agent is behaving.</div>
+  </div>
+  <div id="view-history" style="display:none">
+    <div class="chainbar">
+      <span id="chain"></span>
+      <span>
+        <label><input type="checkbox" id="showall" onchange="loadHistory()"> daemon events</label>
+        &nbsp;<span id="count"></span>
+      </span>
+    </div>
+    <div id="hlist"></div>
+  </div>
 </main>
 <footer>loopback only · tamper-evident audit · deny is the default</footer>
 <script>
@@ -128,11 +166,77 @@ export function renderApprovalsPage(token: string): string {
     }));
   }
 
+  let tab = "pending";
+  function showTab(name) {
+    tab = name;
+    document.getElementById("view-pending").style.display = name === "pending" ? "" : "none";
+    document.getElementById("view-history").style.display = name === "history" ? "" : "none";
+    document.getElementById("tab-pending").className = name === "pending" ? "on" : "";
+    document.getElementById("tab-history").className = name === "history" ? "on" : "";
+    if (name === "history") loadHistory();
+  }
+
+  const VERDICT = {
+    allow: ["ALLOWED", "v-allow"], deny: ["BLOCKED", "v-deny"],
+  };
+  function verdictOf(r) {
+    if (r.kind === "observed") return ["EXECUTED", "v-info"];
+    if (r.kind === "remembered") return ["REMEMBERED", "v-info"];
+    if (r.kind === "started") return ["STARTED", "v-info"];
+    if (!r.verdict) return ["PENDING", "v-info"];
+    return VERDICT[r.verdict] ?? ["?", "v-info"];
+  }
+  function whoDecided(r) {
+    if (r.kind !== "gated") return r.approver ? "by " + r.approver : "";
+    if (r.decidedBy === "human") return "you (" + (r.approver || "?") + ")";
+    if (r.decidedBy === "timeout") return "timed out — auto-denied";
+    if (r.decidedBy === "remembered") return "remembered rule";
+    return r.rule || r.reason || "policy";
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch("/v1/history?limit=200", { headers: HEADERS });
+      if (!res.ok) return;
+      const h = await res.json();
+      document.getElementById("chain").innerHTML = h.chain.ok
+        ? '<span class="badge ok">chain verified</span> ' + h.chain.entries + ' entries, unedited'
+        : '<span class="badge bad">CHAIN BROKEN</span> tampering detected at entry ' + h.chain.brokenAt;
+
+      // Daemon restarts are noise next to agent activity — hidden unless asked for.
+      const showAll = document.getElementById("showall").checked;
+      const rows = showAll ? h.rows : h.rows.filter(r => r.kind !== "started");
+      document.getElementById("count").textContent = rows.length + " of " + h.total + " actions";
+
+      const list = document.getElementById("hlist");
+      if (rows.length === 0) {
+        list.innerHTML = '<div class="empty">No agent activity recorded yet.</div>';
+        return;
+      }
+      list.replaceChildren(...rows.map(r => {
+        const el = document.createElement("div");
+        el.className = "h";
+        const [label, cls] = verdictOf(r);
+        el.innerHTML = '<time></time><div class="what"><span class="tool"></span>' +
+          '<span class="prm"></span><span class="by"></span></div>' +
+          '<span class="v ' + cls + '"></span>';
+        el.querySelector("time").textContent = new Date(r.ts).toLocaleTimeString();
+        el.querySelector(".tool").textContent =
+          r.kind === "started" ? "ClawGuard started" : (r.agent || "?") + " · " + (r.tool || "?");
+        el.querySelector(".prm").textContent = r.params ? JSON.stringify(r.params) : "";
+        el.querySelector(".by").textContent = whoDecided(r);
+        el.querySelector(".v").textContent = label;
+        return el;
+      }));
+    } catch { /* daemon restarting */ }
+  }
+
   async function poll() {
     try {
       const res = await fetch("/v1/pending", { headers: HEADERS });
       if (res.ok) render((await res.json()).pending ?? []);
     } catch { /* daemon restarting — keep polling */ }
+    if (tab === "history") loadHistory();
   }
   poll();
   setInterval(poll, 1500);

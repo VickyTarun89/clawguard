@@ -16,6 +16,11 @@ export class AuditLog {
   #seq = 0;
   #lastHash = GENESIS;
 
+  /** Log location, so readers (e.g. the history view) don't have to guess it. */
+  get path(): string {
+    return this.#path;
+  }
+
   constructor(path: string) {
     this.#path = path;
     mkdirSync(dirname(path), { recursive: true });

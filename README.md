@@ -82,6 +82,12 @@ Also exercised against local models (Qwen3.5-9B, Gemma4-e4b via Ollama) and both
 
 Every pending approval also shows up at **`http://127.0.0.1:4747/ui`** — a zero-dependency page with the pending action, a live auto-deny countdown, and Approve / Deny / Always-allow buttons. Loopback-only, and the daemon rejects any request whose `Host` header isn't localhost, so a malicious website can't reach it via DNS rebinding.
 
+### Seeing what your agent actually did
+
+The same page has a **History** tab: every action the agent tried, what the policy said, who decided, and whether it was allowed or blocked — plus a **chain verified** badge that turns into **CHAIN BROKEN** the moment any past entry has been edited.
+
+Same data via `GET /v1/history?limit=200` if you'd rather read it as JSON.
+
 ### Phone approvals — pick your channel
 
 **Telegram (recommended — ~3 minutes, zero infrastructure):**

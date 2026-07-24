@@ -18,7 +18,8 @@ Personal agents (OpenClaw, Hermes Agent) run with the user's full OS privileges 
 | WhatsApp channel | `src/channels/whatsapp.ts` | Meta Cloud API outbound; inbound replies via outbound-polling relay (`relay/` Worker) |
 | Telegram channel | `src/channels/telegram.ts` | Zero-infra path: outbound long-polling, inline Approve/Deny buttons, unforgeable numeric approver ids |
 | LLM proxy (experimental) | `src/proxy/server.ts` | Reverse proxy for OpenAI chat-completions AND Anthropic Messages: gates tool calls in model responses for any agent, no plugin; agent's own key passes through |
-| Approval web UI | `src/ui/page.ts` | Zero-dependency page at `/ui`: pending cards, countdowns, Approve/Deny/Always buttons; guarded by loopback bind + Host validation |
+| Approval web UI | `src/ui/page.ts` | Zero-dependency page at `/ui`: pending cards, countdowns, Approve/Deny/Always buttons, plus the History tab; guarded by loopback bind + Host validation |
+| History view | `src/audit/history.ts` | Joins `action.requested` + `action.decided` back into one row per action and reports chain verification, so the log is readable without trusting a summary |
 | OpenClaw plugin | `integrations/openclaw/index.ts` | `before_tool_call` hook → `/v1/check`; blocks on anything but an explicit allow |
 | Hermes plugin | `integrations/hermes/plugin.py` | `pre_tool_call` gate + `post_tool_call` execution reports to `/v1/events` for bypass detection (upstream hook can silently not fire: hermes-agent#44582) |
 
