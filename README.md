@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/hero.png" alt="ClawGuard — the firewall for AI agents" width="100%" />
+  <img src="docs/assets/mascot.png" alt="ClawGuard mascot — a friendly shield robot guarding your machine" width="240" />
 </p>
 
 # 🛡️ ClawGuard
